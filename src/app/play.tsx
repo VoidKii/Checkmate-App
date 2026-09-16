@@ -1,29 +1,23 @@
+import { useState } from 'react';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const BG = '#07111f';
-const CARD = '#0d1b2a';
-const WHITE = '#f7f9fc';
-const MUTED = '#8ea0b8';
-const ACCENT = '#39d98a';
+const BG='#07111f',CARD='#0d1b2a',WHITE='#f7f9fc',MUTED='#8ea0b8',ACCENT='#39d98a';
+const controls=[['1+0','Bullet'],['3+0','Blitz'],['5+0','Blitz'],['10+0','Rapid'],['15+10','Rapid']];
 
-export default function PlayScreen() {
-  return <View style={styles.root}>
-    <LinearGradient colors={['#0b1d31', BG, '#050b14']} style={StyleSheet.absoluteFill} />
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}><Pressable onPress={() => router.back()}><Text style={styles.back}>‹</Text></Pressable><Text style={styles.title}>Play Chess</Text><View style={{ width: 30 }} /></View>
-      <Text style={styles.subtitle}>Choose how you want to play</Text>
-      <Mode title="⚡  Quick Match" text="Find a real opponent automatically" button="Find Match" onPress={() => router.push('/game')} />
-      <Mode title="♟  Play a Friend" text="Create a private room and invite someone" button="Create Room" onPress={() => router.push('/game')} />
-      <Mode title="🤖  Play Bots" text="Practice against a computer" button="Play Bot" onPress={() => router.push('/game')} />
-    </SafeAreaView>
-  </View>;
+export default function PlayScreen(){
+ const [selected,setSelected]=useState('10+0'); const [room,setRoom]=useState('');
+ return <View style={styles.root}><LinearGradient colors={['#0b1d31',BG,'#050b14']} style={StyleSheet.absoluteFill}/><SafeAreaView style={styles.safe}>
+  <View style={styles.header}><Pressable onPress={()=>router.back()}><Text style={styles.back}>‹</Text></Pressable><Text style={styles.title}>Play Chess</Text><View style={{width:30}}/></View>
+  <Text style={styles.subtitle}>V10 online arena • Play. Think. Conquer.</Text>
+  <Text style={styles.label}>TIME CONTROL</Text><View style={styles.controls}>{controls.map(([time,cat])=><Pressable key={time} onPress={()=>setSelected(time)} style={[styles.chip,selected===time&&styles.chipOn]}><Text style={[styles.chipTime,selected===time&&styles.chipTextOn]}>{time}</Text><Text style={styles.chipCat}>{cat}</Text></Pressable>)}</View>
+  <Mode title="⚡  Quick Match" text="Jump into a live online game." button="Find Match" onPress={()=>router.push({pathname:'/game',params:{mode:'online'}})}/>
+  <Mode title="♟  Create Private Room" text="Make a room code and challenge a friend." button="Create Room" onPress={()=>router.push({pathname:'/game',params:{mode:'online'}})}/>
+  <View style={styles.join}><Text style={styles.joinTitle}>🔗 Join a room</Text><Text style={styles.text}>Enter a 6-character code from your friend.</Text><View style={styles.row}><TextInput value={room} onChangeText={setRoom} autoCapitalize="characters" maxLength={6} placeholder="ABC123" placeholderTextColor="#60748d" style={styles.input}/><Pressable style={styles.joinButton} onPress={()=>room.trim().length===6?router.push({pathname:'/game',params:{mode:'online',room:room.trim().toUpperCase()}}):Alert.alert('Room code','Enter the 6-character room code.') }><Text style={styles.buttonText}>JOIN</Text></Pressable></View></View>
+  <Mode title="🤖  Play Bots" text="Practice locally while online features are unavailable." button="Play Bot" onPress={()=>router.push('/game')}/>
+ </SafeAreaView></View>;
 }
-
-function Mode({ title, text, button, onPress }: { title: string; text: string; button: string; onPress: () => void }) {
-  return <View style={styles.card}><Text style={styles.modeTitle}>{title}</Text><Text style={styles.text}>{text}</Text><Pressable style={styles.button} onPress={onPress}><Text style={styles.buttonText}>{button}</Text></Pressable></View>;
-}
-
-const styles = StyleSheet.create({ root: { flex: 1, backgroundColor: BG }, safe: { flex: 1, padding: 20 }, header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }, back: { color: WHITE, fontSize: 38, lineHeight: 38 }, title: { color: WHITE, fontSize: 22, fontWeight: '900' }, subtitle: { color: MUTED, fontSize: 14, marginBottom: 22 }, card: { backgroundColor: CARD, borderRadius: 20, borderWidth: 1, borderColor: '#183149', padding: 20, marginBottom: 14 }, modeTitle: { color: WHITE, fontSize: 18, fontWeight: '800' }, text: { color: MUTED, fontSize: 13, marginTop: 7, marginBottom: 17 }, button: { backgroundColor: ACCENT, borderRadius: 12, padding: 13, alignItems: 'center' }, buttonText: { color: '#03140c', fontWeight: '900' } });
+function Mode({title,text,button,onPress}:{title:string;text:string;button:string;onPress:()=>void}){return <View style={styles.card}><Text style={styles.modeTitle}>{title}</Text><Text style={styles.text}>{text}</Text><Pressable style={styles.button} onPress={onPress}><Text style={styles.buttonText}>{button}</Text></Pressable></View>}
+const styles=StyleSheet.create({root:{flex:1,backgroundColor:BG},safe:{flex:1,padding:20},header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:8},back:{color:WHITE,fontSize:38,lineHeight:38},title:{color:WHITE,fontSize:22,fontWeight:'900'},subtitle:{color:MUTED,fontSize:13,marginBottom:16},label:{color:MUTED,fontSize:10,fontWeight:'900',letterSpacing:1,marginBottom:8},controls:{flexDirection:'row',gap:7,marginBottom:14},chip:{backgroundColor:CARD,borderRadius:11,paddingVertical:8,paddingHorizontal:9,borderWidth:1,borderColor:'#183149'},chipOn:{borderColor:ACCENT},chipTime:{color:WHITE,fontWeight:'900',fontSize:12},chipTextOn:{color:ACCENT},chipCat:{color:MUTED,fontSize:8,marginTop:2},card:{backgroundColor:CARD,borderRadius:18,borderWidth:1,borderColor:'#183149',padding:16,marginBottom:10},modeTitle:{color:WHITE,fontSize:16,fontWeight:'800'},text:{color:MUTED,fontSize:12,marginTop:5,marginBottom:12},button:{backgroundColor:ACCENT,borderRadius:11,padding:11,alignItems:'center'},buttonText:{color:'#03140c',fontWeight:'900',fontSize:12},join:{backgroundColor:'#10263a',borderRadius:18,padding:16,marginBottom:10},joinTitle:{color:WHITE,fontSize:16,fontWeight:'900'},row:{flexDirection:'row',gap:8},input:{flex:1,backgroundColor:'#07111f',borderRadius:11,color:WHITE,paddingHorizontal:13,fontWeight:'900',letterSpacing:2},joinButton:{backgroundColor:ACCENT,borderRadius:11,paddingHorizontal:18,justifyContent:'center'}});
