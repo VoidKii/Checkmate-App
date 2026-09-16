@@ -1,26 +1,49 @@
-import { useMemo, useState } from 'react';
-import { router } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Chess } from 'chess.js';
+import { getSocket, createRoom, joinRoom, disconnectChessServer, type TimeControl } from '@/lib/chessServer';
 
-const LIGHT = '#dce5d1'; const DARK = '#739552'; const BG = '#07111f'; const CARD = '#0d1b2a'; const WHITE = '#f7f9fc'; const MUTED = '#8ea0b8'; const ACCENT = '#39d98a';
-const PIECES: Record<string,string> = { p:'♟', r:'♜', n:'♞', b:'♝', q:'♛', k:'♚', P:'♙', R:'♖', N:'♘', B:'♗', Q:'♕', K:'♔' };
+const LIGHT='#dce5d1', DARK='#739552', BG='#07111f', CARD='#0d1b2a', WHITE='#f7f9fc', MUTED='#8ea0b8', ACCENT='#39d98a';
+const PIECES:Record<string,string>={p:'♟',r:'♜',n:'♞',b:'♝',q:'♛',k:'♚',P:'♙',R:'♖',N:'♘',B:'♗',Q:'♕',K:'♔'};
+const LOCAL_TIME:TimeControl={initial:600,increment:0,label:'10+0'};
 
 export default function GameScreen(){
- const [game,setGame]=useState(()=>new Chess()); const [selected,setSelected]=useState<string|null>(null); const [history,setHistory]=useState<string[]>([]); const [seconds,setSeconds]=useState(600);
+ const params=useLocalSearchParams<{mode?:string;room?:string}>();
+ const online=params.mode==='online';
+ const [game,setGame]=useState(()=>new Chess()); const [selected,setSelected]=useState<string|null>(null); const [history,setHistory]=useState<string[]>([]);
+ const [color,setColor]=useState<'w'|'b'>('w'); const [roomCode,setRoomCode]=useState(params.room||''); const [waiting,setWaiting]=useState(online); const [status,setStatus]=useState(online?'Connecting…':'Your turn');
+ const [clocks,setClocks]=useState({w:600,b:600}); const [timeControl,setTimeControl]=useState<TimeControl>(LOCAL_TIME);
  const board=useMemo(()=>game.board(),[game]); const legal=selected?game.moves({square:selected as any,verbose:true}).map((m:any)=>m.to):[];
- const tap=(sq:string)=>{ if(game.isGameOver())return; if(selected){ const move=game.moves({square:selected as any,verbose:true}).find((m:any)=>m.to===sq); if(move){ const g=new Chess(game.fen()); try{const result=g.move({from:selected,to:sq,promotion:'q'}); setGame(g); setHistory(h=>[...h,result.san]); setSelected(null); return;}catch{} } } const piece=game.get(sq as any); if(piece&&piece.color===game.turn())setSelected(sq); else setSelected(null); };
- const reset=()=>{setGame(new Chess());setHistory([]);setSelected(null)};
- const mins=Math.floor(seconds/60).toString().padStart(2,'0'); const secs=(seconds%60).toString().padStart(2,'0');
- return <View style={styles.root}><SafeAreaView style={styles.safe}><View style={styles.top}><Pressable onPress={()=>router.back()}><Text style={styles.back}>‹</Text></Pressable><View><Text style={styles.player}>CHECKMATE</Text><Text style={styles.small}>Rated • Rapid 10+0</Text></View><Pressable onPress={reset}><Text style={styles.reset}>↻</Text></Pressable></View>
- <View style={styles.opponent}><Text style={styles.name}>Opponent</Text><Text style={styles.clock}>10:00</Text></View>
- <View style={styles.board}>{board.map((row,r)=>row.map((p,c)=>{const sq=String.fromCharCode(97+c)+(8-r);const dark=(r+c)%2===1;return <Pressable key={sq} onPress={()=>tap(sq)} style={[styles.square,{backgroundColor:dark?DARK:LIGHT},selected===sq&&styles.selected,legal.includes(sq)&&styles.target]}><Text style={[styles.piece,p?.color==='w'?styles.whitePiece:styles.blackPiece]}>{p?PIECES[p.color==='w'?p.type.toUpperCase():p.type]:''}</Text>{legal.includes(sq)&&<View style={styles.dot}/>}</Pressable>}))}</View>
- <View style={styles.you}><Text style={styles.name}>You</Text><Text style={[styles.clock,styles.activeClock]}>{mins}:{secs}</Text></View>
- <View style={styles.gamebar}><Text style={styles.status}>{game.isCheckmate()?'CHECKMATE':game.isCheck()?'CHECK':game.isStalemate()?'STALEMATE':'Your turn'}</Text><Text style={styles.captured}>Moves {history.length}</Text></View>
- <View style={styles.actions}><Action text="🤝 Draw"/><Action text="⚑ Resign" onPress={()=>router.back()}/><Action text="↻ Rematch" onPress={reset}/></View>
- <ScrollView style={styles.moves} horizontal showsHorizontalScrollIndicator={false}>{history.map((m,i)=><Text key={i} style={styles.move}>{i+1}. {m}</Text>)}</ScrollView>
- </SafeAreaView></View>
+
+ useEffect(()=>{
+   if(!online) return;
+   const s=getSocket();
+   const onReady=(state:any)=>{ if(state.fen){setGame(new Chess(state.fen));setClocks({w:state.clocks.w,b:state.clocks.b});setTimeControl(state.timeControl);setWaiting(false);setStatus('Your turn');} };
+   const onUpdate=(state:any)=>{setGame(new Chess(state.fen));setClocks({w:state.clocks.w,b:state.clocks.b});setTimeControl(state.timeControl);setHistory(h=>[...h,state.move?.san].filter(Boolean));setStatus(state.checkmate?'Checkmate':state.draw?'Draw':state.check?'Check':state.turn===color?'Your turn':'Opponent turn');};
+   const onClock=(c:any)=>setClocks({w:c.w,b:c.b});
+   const onOver=(x:any)=>setStatus(x.reason==='timeout'?`${x.winner} wins on time`:x.reason==='resignation'?`${x.winner} wins`:x.reason==='draw'?'Draw':`${x.winner} wins`);
+   const onDisconnect=()=>{setWaiting(false);setStatus('Opponent disconnected');};
+   s.on('room-ready',onReady);s.on('game-update',onUpdate);s.on('clock-update',onClock);s.on('game-over',onOver);s.on('player-disconnected',onDisconnect);
+   const start=async()=>{try{if(params.room){const r=await joinRoom(params.room);setRoomCode(r.roomCode);setColor(r.color);setGame(new Chess(r.fen));setClocks(r.clocks);setTimeControl(r.timeControl);setWaiting(false);setStatus(r.color==='w'?'Waiting for opponent':'Your turn');}else{const r=await createRoom('checkmate-mobile',LOCAL_TIME);setRoomCode(r.roomCode);setColor(r.color);setGame(new Chess(r.fen));setClocks(r.clocks);setTimeControl(r.timeControl);setStatus('Room created — share the code');}}catch(e:any){setStatus(e.message||'Connection failed');setWaiting(false);}};
+   start(); return()=>{s.off('room-ready',onReady);s.off('game-update',onUpdate);s.off('clock-update',onClock);s.off('game-over',onOver);s.off('player-disconnected',onDisconnect);disconnectChessServer();};
+ },[online,params.room]);
+
+ const tap=(sq:string)=>{if(game.isGameOver()||waiting||(online&&game.turn()!==color))return;if(selected){const move=game.moves({square:selected as any,verbose:true}).find((m:any)=>m.to===sq);if(move){const payload={from:selected,to:sq,promotion:'q'};if(online){getSocket().emit('make-move',{roomCode,move:payload},(r:any)=>{if(!r?.success)setStatus(r?.error||'Move rejected');});}else{try{const g=new Chess(game.fen());const result=g.move(payload);setGame(g);setHistory(h=>[...h,result.san]);setStatus(g.isCheckmate()?'Checkmate':g.isCheck()?'Check':g.isStalemate()?'Draw':g.turn()==='w'?'White turn':'Black turn');}catch{}}setSelected(null);return;}}const piece=game.get(sq as any);if(piece&&piece.color===game.turn())setSelected(sq);else setSelected(null);};
+ const resign=()=>{if(online)getSocket().emit('resign',{roomCode});else router.back();};
+ const draw=()=>{if(online)getSocket().emit('offer-draw',{roomCode});else setStatus('Draw offer sent');};
+ const display=(n:number)=>`${Math.floor(Math.max(0,n)/60).toString().padStart(2,'0')}:${(Math.max(0,n)%60).toString().padStart(2,'0')}`;
+ return <View style={styles.root}><SafeAreaView style={styles.safe}>
+  <View style={styles.top}><Pressable onPress={()=>router.back()}><Text style={styles.back}>‹</Text></Pressable><View><Text style={styles.player}>CHECKMATE</Text><Text style={styles.small}>{online?`Online • ${timeControl.label}`:'Local • Rapid 10+0'}</Text></View><Pressable onPress={()=>router.replace('/play')}><Text style={styles.reset}>⌂</Text></Pressable></View>
+  {online&&<View style={styles.room}><Text style={styles.roomText}>{roomCode?'ROOM '+roomCode:'Connecting…'}</Text><Text style={styles.roomHint}>{waiting?'Share this code with your opponent':'LIVE MATCH'}</Text></View>}
+  <View style={styles.opponent}><Text style={styles.name}>{color==='w'?'Black':'White'} • Opponent</Text><Text style={styles.clock}>{display(color==='w'?clocks.b:clocks.w)}</Text></View>
+  <View style={styles.board}>{board.map((row,r)=>row.map((p,c)=>{const sq=String.fromCharCode(97+c)+(8-r);const dark=(r+c)%2===1;return <Pressable key={sq} onPress={()=>tap(sq)} style={[styles.square,{backgroundColor:dark?DARK:LIGHT},selected===sq&&styles.selected]}><Text style={[styles.piece,p?.color==='w'?styles.whitePiece:styles.blackPiece]}>{p?PIECES[p.color==='w'?p.type.toUpperCase():p.type]:''}</Text>{legal.includes(sq)&&<View style={styles.dot}/>}</Pressable>}))}</View>
+  <View style={styles.you}><Text style={styles.name}>You • {color==='w'?'White':'Black'}</Text><Text style={[styles.clock,styles.activeClock]}>{display(color==='w'?clocks.w:clocks.b)}</Text></View>
+  <View style={styles.gamebar}><Text style={styles.status}>{status}</Text><Text style={styles.captured}>{online?'Realtime':'Moves'} {history.length}</Text></View>
+  <View style={styles.actions}><Action text="🤝 Draw" onPress={draw}/><Action text="⚑ Resign" onPress={resign}/><Action text="↻ Rematch" onPress={()=>router.replace('/game')}/></View>
+  <ScrollView style={styles.moves} horizontal showsHorizontalScrollIndicator={false}>{history.map((m,i)=><Text key={i} style={styles.move}>{i+1}. {m}</Text>)}</ScrollView>
+ </SafeAreaView></View>;
 }
 function Action({text,onPress}:{text:string;onPress?:()=>void}){return <Pressable onPress={onPress} style={styles.action}><Text style={styles.actionText}>{text}</Text></Pressable>}
-const styles=StyleSheet.create({root:{flex:1,backgroundColor:BG},safe:{flex:1,paddingHorizontal:12},top:{height:58,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},back:{color:WHITE,fontSize:38,lineHeight:38},reset:{color:WHITE,fontSize:27},player:{color:WHITE,fontWeight:'900',fontSize:14},small:{color:MUTED,fontSize:10,marginTop:2},opponent:{flexDirection:'row',justifyContent:'space-between,',alignItems:'center',backgroundColor:CARD,borderRadius:12,padding:10,marginBottom:8},name:{color:WHITE,fontWeight:'800'},clock:{color:WHITE,fontSize:18,fontWeight:'900'},activeClock:{color:ACCENT},board:{width:'100%',aspectRatio:1,flexDirection:'row',flexWrap:'wrap',borderRadius:4,overflow:'hidden'},square:{width:'12.5%',height:'12.5%',alignItems:'center',justifyContent:'center'},selected:{borderWidth:3,borderColor:ACCENT},target:{},piece:{fontSize:34,textShadowColor:'#000',textShadowOffset:{width:1,height:1},textShadowRadius:2},whitePiece:{color:'#fff'},blackPiece:{color:'#111'},dot:{position:'absolute',width:10,height:10,borderRadius:5,backgroundColor:'rgba(0,0,0,.25)'},you:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',backgroundColor:CARD,borderRadius:12,padding:10,marginTop:8},gamebar:{flexDirection:'row',justifyContent:'space-between',paddingVertical:10},status:{color:ACCENT,fontWeight:'900'},captured:{color:MUTED,fontSize:12},actions:{flexDirection:'row',gap:8},action:{flex:1,backgroundColor:CARD,borderRadius:10,paddingVertical:11,alignItems:'center'},actionText:{color:WHITE,fontSize:11,fontWeight:'800'},moves:{marginTop:8,maxHeight:42},move:{color:MUTED,fontSize:12,marginRight:14,paddingVertical:8}});
+const styles=StyleSheet.create({root:{flex:1,backgroundColor:BG},safe:{flex:1,paddingHorizontal:12},top:{height:58,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},back:{color:WHITE,fontSize:38,lineHeight:38},reset:{color:WHITE,fontSize:24},player:{color:WHITE,fontWeight:'900',fontSize:14},small:{color:MUTED,fontSize:10,marginTop:2},room:{backgroundColor:'#10263a',borderRadius:12,padding:10,marginBottom:8,flexDirection:'row',justifyContent:'space-between',alignItems:'center'},roomText:{color:ACCENT,fontWeight:'900',letterSpacing:1},roomHint:{color:MUTED,fontSize:10},opponent:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',backgroundColor:CARD,borderRadius:12,padding:10,marginBottom:8},name:{color:WHITE,fontWeight:'800'},clock:{color:WHITE,fontSize:18,fontWeight:'900'},activeClock:{color:ACCENT},board:{width:'100%',aspectRatio:1,flexDirection:'row',flexWrap:'wrap',borderRadius:4,overflow:'hidden'},square:{width:'12.5%',height:'12.5%',alignItems:'center',justifyContent:'center'},selected:{borderWidth:3,borderColor:ACCENT},piece:{fontSize:34,textShadowColor:'#000',textShadowOffset:{width:1,height:1},textShadowRadius:2},whitePiece:{color:'#fff'},blackPiece:{color:'#111'},dot:{position:'absolute',width:10,height:10,borderRadius:5,backgroundColor:'rgba(0,0,0,.25)'},you:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',backgroundColor:CARD,borderRadius:12,padding:10,marginTop:8},gamebar:{flexDirection:'row',justifyContent:'space-between',paddingVertical:10},status:{color:ACCENT,fontWeight:'900'},captured:{color:MUTED,fontSize:12},actions:{flexDirection:'row',gap:8},action:{flex:1,backgroundColor:CARD,borderRadius:10,paddingVertical:11,alignItems:'center'},actionText:{color:WHITE,fontSize:11,fontWeight:'800'},moves:{marginTop:8,maxHeight:42},move:{color:MUTED,fontSize:12,marginRight:14,paddingVertical:8}});
