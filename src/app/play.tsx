@@ -6,17 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const BG='#07111f',CARD='#0d1b2a',WHITE='#f7f9fc',MUTED='#8ea0b8',ACCENT='#39d98a';
 const controls=[['1+0','Bullet'],['3+0','Blitz'],['5+0','Blitz'],['10+0','Rapid'],['15+10','Rapid']];
-
 export default function PlayScreen(){
  const [selected,setSelected]=useState('10+0'); const [room,setRoom]=useState('');
+ const go=(mode:string)=>router.push({pathname:'/game',params:{mode,...(mode==='online'?{}:{bot:'1'})}});
  return <View style={styles.root}><LinearGradient colors={['#0b1d31',BG,'#050b14']} style={StyleSheet.absoluteFill}/><SafeAreaView style={styles.safe}>
-  <View style={styles.header}><Pressable onPress={()=>router.back()}><Text style={styles.back}>‹</Text></Pressable><Text style={styles.title}>Play Chess</Text><View style={{width:30}}/></View>
-  <Text style={styles.subtitle}>V10 online arena • Play. Think. Conquer.</Text>
+  <View style={styles.header}><Pressable onPress={()=>router.back()}><Text style={styles.back}>‹</Text></Pressable><Text style={styles.title}>Play Chess</Text><View style={{width:30}}/></View><Text style={styles.subtitle}>V10 online arena • Play. Think. Conquer.</Text>
   <Text style={styles.label}>TIME CONTROL</Text><View style={styles.controls}>{controls.map(([time,cat])=><Pressable key={time} onPress={()=>setSelected(time)} style={[styles.chip,selected===time&&styles.chipOn]}><Text style={[styles.chipTime,selected===time&&styles.chipTextOn]}>{time}</Text><Text style={styles.chipCat}>{cat}</Text></Pressable>)}</View>
-  <Mode title="⚡  Quick Match" text="Jump into a live online game." button="Find Match" onPress={()=>router.push({pathname:'/game',params:{mode:'online'}})}/>
-  <Mode title="♟  Create Private Room" text="Make a room code and challenge a friend." button="Create Room" onPress={()=>router.push({pathname:'/game',params:{mode:'online'}})}/>
-  <View style={styles.join}><Text style={styles.joinTitle}>🔗 Join a room</Text><Text style={styles.text}>Enter a 6-character code from your friend.</Text><View style={styles.row}><TextInput value={room} onChangeText={setRoom} autoCapitalize="characters" maxLength={6} placeholder="ABC123" placeholderTextColor="#60748d" style={styles.input}/><Pressable style={styles.joinButton} onPress={()=>room.trim().length===6?router.push({pathname:'/game',params:{mode:'online',room:room.trim().toUpperCase()}}):Alert.alert('Room code','Enter the 6-character room code.') }><Text style={styles.buttonText}>JOIN</Text></Pressable></View></View>
-  <Mode title="🤖  Play Bots" text="Practice locally while online features are unavailable." button="Play Bot" onPress={()=>router.push('/game')}/>
+  <Mode title="⚡  Quick Match" text="Jump into a live online game." button="Find Match" onPress={()=>go('online')}/><Mode title="♟  Create Private Room" text="Make a room code and challenge a friend." button="Create Room" onPress={()=>go('online')}/>
+  <View style={styles.join}><Text style={styles.joinTitle}>🔗 Join a room</Text><Text style={styles.text}>Enter a 6-character code from your friend.</Text><View style={styles.row}><TextInput value={room} onChangeText={setRoom} autoCapitalize="characters" maxLength={6} placeholder="ABC123" placeholderTextColor="#60748d" style={styles.input}/><Pressable style={styles.joinButton} onPress={()=>room.trim().length===6?router.push({pathname:'/game',params:{mode:'online',room:room.trim().toUpperCase()}}):Alert.alert('Room code','Enter the 6-character room code.')}><Text style={styles.buttonText}>JOIN</Text></Pressable></View></View>
+  <Mode title="🤖  Play Bots" text="Play a local computer opponent." button="Play Bot" onPress={()=>go('bot')}/>
  </SafeAreaView></View>;
 }
 function Mode({title,text,button,onPress}:{title:string;text:string;button:string;onPress:()=>void}){return <View style={styles.card}><Text style={styles.modeTitle}>{title}</Text><Text style={styles.text}>{text}</Text><Pressable style={styles.button} onPress={onPress}><Text style={styles.buttonText}>{button}</Text></Pressable></View>}
