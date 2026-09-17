@@ -130,7 +130,6 @@ io.on("connection", (socket) => {
       turn: "w",
       timeControl: selectedTimeControl,
     });
-    console.log(`Room ${roomCode} created${owner ? " by owner" : ""} with ${selectedTimeControl.label}`);
   });
 
   socket.on("join-room", (roomCode, callback) => {
@@ -221,11 +220,22 @@ io.on("connection", (socket) => {
       room.clocks.w = Math.min(getRemainingTime(room, "w") + 60 * 1000, 60 * 60 * 1000);
       room.turnStartedAt = Date.now();
     } else if (action === "reset") {
+      room.chess = new Chess();
       room.clocks = { w: room.timeControl.initial * 1000, b: room.timeControl.initial * 1000 };
       room.frozen = { w: false, b: false };
       room.finished = false;
       room.drawOfferedBy = null;
-      room.turnStartedAt = Date.now();
+      room.turnStartedAt = room.started ? Date.now() : null;
+      io.to(roomCode).emit("game-update", {
+        fen: room.chess.fen(),
+        move: null,
+        checkmate: false,
+        draw: false,
+        check: false,
+        turn: room.chess.turn(),
+        clocks: getClockState(room),
+        timeControl: room.timeControl,
+      });
     } else if (action === "force-win") {
       room.finished = true;
       room.turnStartedAt = null;
