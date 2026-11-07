@@ -1,4 +1,4 @@
-import { mkdir, copyFile } from 'node:fs/promises';
+import { access, mkdir, copyFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const root = process.cwd();
@@ -17,4 +17,10 @@ await copyFile(
   resolve(root, 'assets/stockfish/index.html'),
   resolve(target, 'index.html'),
 );
+try {
+  await access(resolve(engineSource, 'Copying.txt'));
+  await copyFile(resolve(engineSource, 'Copying.txt'), resolve(target, 'Copying.txt'));
+} catch {
+  console.warn('Stockfish license text was not present in the installed package.');
+}
 console.log('Prepared bundled Stockfish 19 Lite single-threaded Android assets.');
