@@ -23,4 +23,5 @@ try {
 } catch {
   console.warn('Stockfish license text was not present in the installed package.');
 }
+await copyFile(resolve(root, 'THIRD_PARTY_NOTICES.md'), resolve(target, 'NOTICE.txt'));
 console.log('Prepared bundled Stockfish 19 Lite single-threaded Android assets.');
