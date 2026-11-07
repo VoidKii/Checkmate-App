@@ -31,6 +31,7 @@ export default function HomeScreen() {
             <ActionCard icon="♟" title="Play a Friend" subtitle="Private room" onPress={() => router.push('/play')} />
             <ActionCard icon="🤖" title="Play Bots" subtitle="Practice offline" onPress={() => router.push('/game')} />
             <ActionCard icon="🧩" title="Puzzles" subtitle="Train your tactics" onPress={() => router.push('/puzzles')} />
+            <ActionCard icon="♜" title="Game Analysis" subtitle="Review a finished game offline" onPress={() => router.push('/analyze')} />
           </View>
           <View style={styles.statsCard}><Text style={styles.statsLabel}>RAPID RATING</Text><Text style={styles.rating}>1200</Text><View style={styles.statRow}><Stat label="Games" value="0" /><Stat label="Wins" value="0" /><Stat label="Win rate" value="—" /></View></View>
         </ScrollView>
