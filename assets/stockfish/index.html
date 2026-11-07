@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offline Stockfish Engine</title>
+</head>
+<body>
+<script>
+(function () {
+  'use strict';
+  function bridge(message) {
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(message));
+    }
+  }
+
+  var engine;
+  try {
+    engine = new Worker('stockfish-19-lite-single.js');
+  } catch (error) {
+    bridge({ type: 'error', message: 'Stockfish worker could not start: ' + String(error) });
+    return;
+  }
+
+  engine.onmessage = function (event) {
+    var line = String(event.data || '').trim();
+    if (line === 'uciok') {
+      engine.postMessage('isready');
+      return;
+    }
+    if (line === 'readyok') {
+      bridge({ type: 'ready' });
+      return;
+    }
+    if (line.indexOf('info ') === 0 || line.indexOf('bestmove ') === 0) {
+      bridge({ type: 'line', line: line });
+    }
+  };
+
+  engine.onerror = function (event) {
+    bridge({ type: 'error', message: event.message || 'Stockfish worker error.' });
+  };
+
+  function handleMessage(event) {
+    var data;
+    try {
+      data = JSON.parse(event.data);
+    } catch (_) {
+      return;
+    }
+    if (!data || data.type !== 'analyze' || typeof data.fen !== 'string') return;
+    var depth = Math.max(8, Math.min(16, Number(data.depth) || 12));
+    engine.postMessage('stop');
+    engine.postMessage('ucinewgame');
+    engine.postMessage('position fen ' + data.fen);
+    engine.postMessage('go depth ' + depth);
+  }
+
+  window.addEventListener('message', handleMessage);
+  engine.postMessage('uci');
+})();
+</script>
+</body>
+</html>
